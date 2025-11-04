@@ -42,7 +42,20 @@ app.use('/api/auth', authRoutes);
 
 // Root route
 app.get('/', (req, res) => {
-  res.send('MERN Blog API is running');
+  res.json({ 
+    message: 'MERN Blog API is running',
+    database: mongoose.connection.readyState === 1 ? 'Connected' : 'Using Mock Data'
+  });
+});
+
+// Health check route
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    server: 'Running',
+    database: mongoose.connection.readyState === 1 ? 'Connected' : 'Mock Data',
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Error handling middleware
@@ -54,25 +67,39 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Connect to MongoDB and start server
-mongoose
-  .connect(process.env.MONGODB_URI)
-  .then(() => {
-    console.log('Connected to MongoDB');
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-    });
-  })
-  .catch((err) => {
-    console.error('Failed to connect to MongoDB', err);
-    process.exit(1);
-  });
+// Connect to MongoDB with error handling
+const connectDB = async () => {
+  try {
+    // If using the dummy connection string, use mock data
+    if (process.env.MONGODB_URI.includes('cluster0.xxx.mongodb.net')) {
+      console.log('⚠️  Using Mock Data - Please configure a real MongoDB connection');
+      console.log('📝 API endpoints will work with sample data');
+      return;
+    }
+    
+    await mongoose.connect(process.env.MONGODB_URI);
+    console.log('✅ Connected to MongoDB');
+  } catch (err) {
+    console.log('⚠️  MongoDB connection failed, using mock data');
+    console.log('💡 To use real database:');
+    console.log('   1. Create MongoDB Atlas account at https://mongodb.com/atlas');
+    console.log('   2. Update MONGODB_URI in .env file with your connection string');
+    console.log('   3. Restart the server');
+  }
+};
+
+// Start server without waiting for MongoDB
+app.listen(PORT, async () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📚 API Documentation: http://localhost:${PORT}/api`);
+  
+  // Try to connect to DB but don't block server startup
+  await connectDB();
+});
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
   console.error('Unhandled Promise Rejection:', err);
-  // Close server & exit process
-  process.exit(1);
 });
 
-module.exports = app; 
+module.exports = app;
